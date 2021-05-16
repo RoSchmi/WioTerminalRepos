@@ -1,6 +1,6 @@
 //File: Wio_Terminal_Rfm69_Receiver_Eyes
 // Copyright Roschmi 2021, License Apache V2
-// Please obey the License agreements of the libraries included like Rfm69 and others
+// Please obey the License agreements of the libraries included like Rfm69 and UncannyEyes
 
 #include <Arduino.h>
 #include <time.h>
@@ -62,7 +62,7 @@ uint32_t animationStartTime = 0;
 
 bool animationShallRun = false;
 
-#
+
 
 typedef struct {
   int8_t   pin;       // Optional button here for indiv. wink
@@ -84,7 +84,7 @@ uint32_t fstart = 0;  // start time to improve frame rate calculation at startup
 
 
 //*********************************************************************************************
-// *********** IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE *************
+// ******* IMPORTANT SETTINGS FOR RFM69- YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE *************
 //*********************************************************************************************
 
 #define NETWORKID                   100  //the same on all nodes that talk to each other
@@ -120,7 +120,7 @@ int missedPacketNumToShow = 0;
 
 RFM69 rfm69(RF69_SPI_CS, RF69_IRQ_PIN, IS_RFM69HCW);
 
-PowerVM powerVM;
+PowerVM powerVM;    // not used in this App
 
 TFT_eSPI tft;
 
@@ -1157,7 +1157,7 @@ void loop() {
       AverWinIndex = (AverWinIndex + 1) % Average_Window_Size;
       NoiseAverage = NoiseSum / Average_Window_Size;
 
-      if (abs(NoiseValue - NoiseAverage) >  (NoiseAverage / 4))  // Set to max brightness if threshold exceeded
+      if (abs(NoiseValue - NoiseAverage) >  (NoiseAverage + NoiseAverage / 4))  // Set to max brightness if threshold exceeded
       {
         backLight.setBrightness (maxBrightness);
         DisplayOnTime = dateTimeUTCNow;

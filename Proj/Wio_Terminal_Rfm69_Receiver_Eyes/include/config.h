@@ -72,8 +72,8 @@
 //#define USE_TEST_VALUES              // Activates sending of test values (see Code in main.cpp)
                                        // if activated we select test values, not sinus curves
 
-#define SCREEN_OFF_TIME_MINUTES  1      // Switch screen a liitle bit dark after this time
-#define SCREEN_DARK_TIME_MINUTES 2      // Switch screen very dark after this time
+#define SCREEN_OFF_TIME_MINUTES  1      // Switch screen a little bit dark after this time
+#define SCREEN_DARK_TIME_MINUTES 30     // Switch screen very dark after this time
 
 #define SENSOR_1_OFFSET     0.0        // Calibration Offset to sensor No 1
 #define SENSOR_2_OFFSET     0.0        // Calibration Offset to sensor No 2
