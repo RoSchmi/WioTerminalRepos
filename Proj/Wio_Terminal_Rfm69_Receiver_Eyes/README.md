@@ -1,6 +1,4 @@
-# Wio_Terminal_Rfm69_Receiver
-
-This is work in progress.
+# Wio_Terminal_Rfm69_Receiver_Eyes
 
 Wio Terminal receives and displays sensor data transmitted via Adafruit Rfm69HCW radio.
 Uses LowPowerLab Rfm69 library.
@@ -11,5 +9,8 @@ The values are transmitted in a very special non standard data format.
 The actual values are dislayed as numbers on the Wio Terminal display.
 
 Pressing the 5-way button of the Wio Terminal for more than 2 sec toogles the display between power and temperature values.
+Backlight reduction can be reverted by noise (hand clapping)
+As a funny extension this App has an "Uncanny Eyes" animation when awaking from backlight reduction mode
+A simple version of this App without animation is: https://github.com/RoSchmi/Wio_Terminal_Rfm69_Receiver
 
 
