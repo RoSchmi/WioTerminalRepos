@@ -163,7 +163,7 @@ typedef enum
 
 uint32_t timeNtpUpdateCounter = 0;
 int32_t sysTimeNtpDelta = 0;
-uint32_t ntpUpdateInterval = 60000;
+uint32_t ntpUpdateInterval = 60000;      // Is overwritten by value defined in config.h
 uint32_t lastDateOutputMinute = 60;
 uint32_t previousDisplayTimeUpdateMillis = 0;
 uint32_t previousNtpUpdateMillis = 0;
@@ -919,7 +919,6 @@ void loop() {
                 }
                 case '2':             // comes from current sensor
                 {
-
                 float currentInFloat = ((float)sensor_1 / 100);
                 String currentInString = String(currentInFloat, 2);
                 Serial.print("Current: ");
@@ -942,7 +941,9 @@ void loop() {
                   actDay = localTime.day();
                   powerDayMin = 50000;   // very high value
                   powerDayMax = 0;
-                  workAtStartOfDay = workAtStartOfDay < 0.0001 ? workInFloat.value : workAtStartOfDay;
+                  //workAtStartOfDay = workAtStartOfDay < 0.0001 ? workInFloat.value : workAtStartOfDay;
+                  workAtStartOfDay = workInFloat.value;
+
                   }
                     powerDayMin = powerInFloat < powerDayMin ? powerInFloat : powerDayMin;   // actualize day minimum power value
                     powerDayMax = powerInFloat > powerDayMax ? powerInFloat : powerDayMax;   // actualize day maximum power value
@@ -1070,7 +1071,7 @@ void loop() {
             timeNtpUpdateCounter++;   
         }  
       }
-      else            // it was not NTP Update, proceed with send to analog table or On/Off-table
+      else            // it was not NTP Update, proceed 
       {
         dateTimeUTCNow = sysTime.getTime();
       }
