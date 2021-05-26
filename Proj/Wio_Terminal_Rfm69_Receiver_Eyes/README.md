@@ -10,7 +10,8 @@ The other node sends values read from a smartmeter (Current, Power and Work) as 
 The values are transmitted in a very special non standard data format.
 The actual values are dislayed as numbers on the Wio Terminal display.
 
-Pressing the 5-way button of the Wio Terminal for more than 2 sec toogles the display between power and temperature values.
+Pressing the 5-way button of the Wio Terminal for more than 2 sec toogles the display between power and temperature values. Pressing the 5-way buuton
+sends a command to the node to refresh the readings from the smartmeter.
 Backlight reduction can be reverted by noise (hand clapping)
 As a funny extension this App has an "Uncanny Eyes" animation when awaking from backlight reduction mode
 A simple version of this App without animation is: https://github.com/RoSchmi/Wio_Terminal_Rfm69_Receiver
