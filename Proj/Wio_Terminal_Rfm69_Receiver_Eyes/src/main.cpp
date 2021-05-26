@@ -89,9 +89,9 @@ uint32_t fstart = 0;  // start time to improve frame rate calculation at startup
 
 #define NETWORKID                   100  //the same on all nodes that talk to each other
 #define NODEID                      1    // The unique identifier of this node
-#define SOLARPUMP_CURRENT_SENDER_ID 2    // The node which sends current and temperature states
-#define SOLAR_TEMP_SENDER_ID        3    // The node which sends state changes of the solar pump
-//#define RECEIVER      3    // The recipient of packets (of the test-node)
+#define SOLARPUMP_CURRENT_SENDER_ID 2    // The node which sends current values and state changes of the solar pump
+#define SOLAR_TEMP_SENDER_ID        3    // The node which sends temperature states of the solar plant
+//#define RECEIVER                    2    // The recipient of packets (here: SOLARPUMP_CURRENT_SENDER_ID)
 
 //Match frequency to the hardware version of the radio on your Feather
 #define FREQUENCY     RF69_433MHZ
@@ -107,6 +107,15 @@ uint32_t fstart = 0;  // start time to improve frame rate calculation at startup
 #define RF69_SPI_CS           SS // SS is the SPI slave select pin, 
 #define RF69_IRQ_PIN          4  // Rfm69 Interrupt pin
 #define RFM69_RST             3  // Rfm69 reset pin
+
+const int radioPacketLength = 27;
+union Radiopackets
+{
+    char radiopacketPlus1[radioPacketLength + 1];
+    char radiopacket[radioPacketLength];
+};
+
+Radiopackets packets;
 
 uint8_t receivedData[62] {0};
 
@@ -242,6 +251,7 @@ void lcd_log_line(char* line, uint32_t textCol = textColor, uint32_t backCol = b
 }
 
 // forward declarations
+void sendRefreshDataCmd();
 void runWakeUpAnimation();
 unsigned long getNTPtime();
 unsigned long sendNTPpacket(const char* address);
@@ -530,7 +540,8 @@ if (!WiFi.enableSTA(true))
   rfm69.setPowerLevel(31); // power output ranges from 0 (5dBm) to 31 (20dBm), default = 31
 
   rfm69.encrypt(ENCRYPTKEY);
-  //encrypt(0);
+  //rfm69.encrypt(0);
+  
 
   Serial.printf("Working at %i MHz", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
   
@@ -1124,6 +1135,8 @@ void loop() {
         while(digitalRead(WIO_5S_PRESS) == LOW);
 
         backLight.setBrightness (maxBrightness);
+        //RoSchmi
+        sendRefreshDataCmd();
         DisplayOnTime = dateTimeUTCNow;
 
         if ((millis() - startTime) > 2000)
@@ -1221,6 +1234,14 @@ void loop() {
   }
 }
 
+void sendRefreshDataCmd()
+{
+  sprintf(packets.radiopacket, "RefreshCurrentData");
+  Serial.println(packets.radiopacket);
+  rfm69.send(SOLARPUMP_CURRENT_SENDER_ID, packets.radiopacket, radioPacketLength, false);
+}
+
+
 void runWakeUpAnimation()
 {
   tft.fillScreen(TFT_BLACK);
@@ -1230,44 +1251,6 @@ void runWakeUpAnimation()
   animationShallRun = true;
 }
 
-/*
-void runWakeUpAnimation(){
-
-  tft.fillScreen(TFT_BLACK);
-  uint8_t e = 0;
-  fstart = millis()-1; // Subtract 1 to avoid divide by zero later
-  uint32_t startTime = millis();
-
-  while ((millis() - startTime) < 20000)
-  {
-    #if defined(IRIS_PIN) && (IRIS_PIN >= 0)   // Interactive iris
-  uint16_t v = 512; //analogRead(IRIS_PIN);// Raw dial/photocell reading
-#ifdef IRIS_PIN_FLIP
-  v = 1023 - v;
-#endif
-  v = map(v, 0, 1023, IRIS_MIN, IRIS_MAX); // Scale to iris range
-#ifdef IRIS_SMOOTH // Filter input (gradual motion)
-  static uint16_t irisValue = (IRIS_MIN + IRIS_MAX) / 2;
-  irisValue = ((irisValue * 15) + v) / 16;
-  frame(irisValue);
-#else  // Unfiltered (immediate motion)
-  frame(v);
-#endif // IRIS_SMOOTH
-#else  // Autonomous iris scaling -- invoke recursive function
-  newIris = random(IRIS_MIN, IRIS_MAX);
-  split(oldIris, newIris, micros(), 10000000L, IRIS_MAX - IRIS_MIN);
-  oldIris = newIris;
-  volatile int dummy8977 = 1;
-  dummy8977++;
-
-#endif // IRIS_PIN
-  }
-
-  volatile int dummy8976 = 1;
-  dummy8976++;
-
-}
-*/
 
 // To manage daylightsavingstime stuff convert input ("Last", "First", "Second", "Third", "Fourth") to int equivalent
 int getWeekOfMonthNum(const char * weekOfMonth)
