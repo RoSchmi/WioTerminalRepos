@@ -8,7 +8,12 @@ Electrical connection: See folder pictures.
 Sensor data are sent by two different nodes. One node sends three temperature values from a solar plant (collector-, storage- and watertemperature).
 The other node sends values read from a smartmeter (Current, Power and Work) as well as on/off states of the solar plant pump).
 The values are transmitted in a very special non standard data format.
-The actual values are dislayed as numbers on the Wio Terminal display.
+The actual values are displayed as numbers on the Wio Terminal display.
+
+A red dot in the upper right corner of the display signals that the last sending of the node was missed. Green signals o.k.
+
+The first rectangle on the buttom of the screen turns red when a reinitialization of the Rfm69 was performed (no power readings for more than 30 min).
+The second rectangle on the buttom of the screen turns red when a watchdog reset was performed (then Today kWh and Watt min and Watt max are not valid) 
 
 Pressing the 5-way button of the Wio Terminal for more than 2 sec toogles the display between power and temperature values. Pressing the 5-way buuton
 sends a command to the node to refresh the readings from the smartmeter.
