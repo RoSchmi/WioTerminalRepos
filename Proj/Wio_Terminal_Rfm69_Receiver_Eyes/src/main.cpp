@@ -188,6 +188,7 @@ float powerDayMax = 0;
 DateTime BootTimeUtc = DateTime();
 DateTime DisplayOnTime = DateTime();
 DateTime DisplayOffTime = DateTime();
+DateTime LastMessageReceivedTimeUtc = DateTime();
 
 char timeServer[] = "pool.ntp.org"; // external NTP server e.g. better pool.ntp.org
 unsigned int localPort = 2390;      // local port to listen for UDP packets
@@ -198,6 +199,9 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packe
 
 bool ledState = false;
 uint8_t lastResetCause = -1;
+
+bool rfm69ReinitializationHappened = false;
+bool watchDogResetHappened = false;
 
 const int timeZoneOffset = (int)TIMEZONEOFFSET;
 const int dstOffset = (int)DSTOFFSET;
@@ -251,7 +255,8 @@ void lcd_log_line(char* line, uint32_t textCol = textColor, uint32_t backCol = b
 }
 
 // forward declarations
-void sendRefreshDataCmd();
+void hardResetRfm69(uint8_t pin, uint32_t delayTime_Ms);
+void sendRefreshDataCmd(uint32_t sendInterval_Ms = 0, uint32_t repeats = 0);
 void runWakeUpAnimation();
 unsigned long getNTPtime();
 unsigned long sendNTPpacket(const char* address);
@@ -285,11 +290,8 @@ void setup() {
   //-----------------------------------// 
 
   // Hard Reset the RFM module
-  pinMode(RFM69_RST, OUTPUT);   // Wio Terminal: 3
-  digitalWrite(RFM69_RST, HIGH);  
-  delay(100);
-  digitalWrite(RFM69_RST, LOW);
-  delay(100);
+
+  hardResetRfm69(RFM69_RST, 0);
 
   Serial.begin(115200);
   //while(!Serial);
@@ -303,6 +305,8 @@ void setup() {
   // WatchDog:   32
   // BySystem:   64
   lastResetCause = SAMCrashMonitor::getResetCause();
+  watchDogResetHappened = lastResetCause == 32 ? true : false;
+  
   lcd_log_line((char *)SAMCrashMonitor::getResetDescription().c_str());
   SAMCrashMonitor::dump();
   SAMCrashMonitor::disableWatchdog();
@@ -495,6 +499,7 @@ if (!WiFi.enableSTA(true))
   {
     sysTime.begin(utcTime);
     dateTimeUTCNow = utcTime;
+    LastMessageReceivedTimeUtc = utcTime;
   }
   else
   {
@@ -549,6 +554,8 @@ if (!WiFi.enableSTA(true))
 
   runWakeUpAnimation();
 
+
+
   /*
   showDisplayFrame(POWER_SENSOR_01_LABEL, POWER_SENSOR_02_LABEL, POWER_SENSOR_03_LABEL, POWER_SENSOR_04_LABEL, TFT_BLACK, TFT_BLACK, TFT_DARKGREY);
   
@@ -565,7 +572,7 @@ if (!WiFi.enableSTA(true))
   previousNtpRequestMillis = millis();
 
   
-  
+
 }
 
 //*****************   End EYES   *********************************
@@ -869,6 +876,8 @@ void loop() {
 
     bool lastMessageMissed = false;
 
+    // LastMessageReceivedTimeUtc = dateTimeUTCNow;
+
     //print message received to serial
     Serial.printf("[%i]\r\n", senderID);
     uint8_t payLoadLen = rfm69.PAYLOADLEN;
@@ -907,6 +916,8 @@ void loop() {
       {
           case SOLARPUMP_CURRENT_SENDER_ID :    
           {
+            LastMessageReceivedTimeUtc = dateTimeUTCNow; 
+
             lastPacketNum = lastPacketNum == 0 ? actPacketNum -1 : lastPacketNum;
             if ((lastPacketNum + 1) < actPacketNum)
             {
@@ -965,7 +976,7 @@ void loop() {
                         lastScreenWasPower = true;
                         showDisplayFrame(POWER_SENSOR_01_LABEL, POWER_SENSOR_02_LABEL, POWER_SENSOR_03_LABEL, POWER_SENSOR_04_LABEL, TFT_BLACK, TFT_BLACK, TFT_DARKGREY);                                 
                       }
-                      fillDisplayFrame(ValueType::Power, powerInFloat, workInFloat.value - workAtStartOfDay, powerDayMin, powerDayMax, false, false, false, false, lastMessageMissed);
+                      fillDisplayFrame(ValueType::Power, powerInFloat, workInFloat.value - workAtStartOfDay, powerDayMin, powerDayMax, rfm69ReinitializationHappened, watchDogResetHappened, false, false, lastMessageMissed);
                     }
                     Serial.printf("Missed Power-Messages: %d \r\n", missedPacketNums);
                     break;
@@ -1013,7 +1024,7 @@ void loop() {
                     lastScreenWasPower = false;
                     showDisplayFrame(TEMP_SENSOR_01_LABEL, TEMP_SENSOR_02_LABEL, TEMP_SENSOR_03_LABEL, TEMP_SENSOR_04_LABEL, TFT_BLACK, TFT_BLACK, TFT_DARKGREY);                                 
                   }
-                  fillDisplayFrame(ValueType::Temperature, collector_float, storage_float, water_float, 999.9, false, false, false, false, lastMessageMissed);
+                  fillDisplayFrame(ValueType::Temperature, collector_float, storage_float, water_float, 999.9, rfm69ReinitializationHappened, watchDogResetHappened, false, false, lastMessageMissed);
                 }
                 Serial.printf("Missed Temp-Messages: %d \r\n", missedPacketNums_3);
                 break;
@@ -1055,7 +1066,40 @@ void loop() {
       SAMCrashMonitor::iAmAlive();
     #endif
 
-    
+    TimeSpan timeSinceLastReceive = dateTimeUTCNow.operator-(LastMessageReceivedTimeUtc);
+
+    if (timeSinceLastReceive.totalseconds() > 30 * 60)  // if nothing received for more than 30 min
+    { 
+        #if WORK_WITH_WATCHDOG == 1
+          SAMCrashMonitor::iAmAlive();
+        #endif
+                                                        // probably Rfm69 hangs --> reinitialize
+        hardResetRfm69(RFM69_RST, 1000);
+
+        #if WORK_WITH_WATCHDOG == 1
+          SAMCrashMonitor::iAmAlive();
+        #endif
+
+        bool initResult = rfm69.initialize(RF69_433MHZ, NODEID, NETWORKID);
+        Serial.printf("Rfm69 Re-initialization %s\r\n", initResult == true ? "was successful" : "failed");
+        if (initResult)
+        {
+          LastMessageReceivedTimeUtc = dateTimeUTCNow;
+          
+          rfm69ReinitializationHappened = true;
+          rfm69.setPowerLevel(31); // power output ranges from 0 (5dBm) to 31 (20dBm), default = 31
+          rfm69.encrypt(ENCRYPTKEY);
+        }
+        else
+        {
+          Serial.println("Waiting for Watchdog Reset");
+          while (true)
+          {
+            delay(200);
+          }
+        }
+    }
+
     // Update RTC from Ntp when ntpUpdateInterval has expired, retry after 20 sec if update was not successful
     if (((millis() - previousNtpUpdateMillis) >= ntpUpdateInterval) && ((millis() - previousNtpRequestMillis) >= 20000))  
     {      
@@ -1089,8 +1133,7 @@ void loop() {
       
       // Time to reduce backlight has expired ?
       if ((dateTimeUTCNow.operator-(DisplayOnTime)).minutes() > SCREEN_OFF_TIME_MINUTES)
-      {
-        
+      {        
         DisplayOnTime = dateTimeUTCNow;
         if ((dateTimeUTCNow.operator-(DisplayOffTime)).minutes() > SCREEN_DARK_TIME_MINUTES)
         {
@@ -1140,7 +1183,7 @@ void loop() {
         DisplayOnTime = dateTimeUTCNow;
 
         if ((millis() - startTime) > 2000)
-        {         
+        {                 
           if (showPowerScreen)
           {
             showPowerScreen = false;
@@ -1148,14 +1191,16 @@ void loop() {
           }
           else
           {
+            sendRefreshDataCmd(100, 5);
             showPowerScreen = true;
             showDisplayFrame(POWER_SENSOR_01_LABEL, POWER_SENSOR_02_LABEL, POWER_SENSOR_03_LABEL, POWER_SENSOR_04_LABEL, TFT_BLACK, TFT_BLACK, TFT_DARKGREY);        
           }
-          fillDisplayFrame(ValueType::Power, 999.9, 999.9, 999.9, 999.9, false, false, false, false, false);
+          fillDisplayFrame(ValueType::Power, 999.9, 999.9, 999.9, 999.9, rfm69ReinitializationHappened, watchDogResetHappened, false, false, false);
         }
         if ((dateTimeUTCNow.operator-(DisplayOffTime)).minutes() > SCREEN_DARK_TIME_MINUTES)
         {
-          runWakeUpAnimation();       
+          runWakeUpAnimation();
+          sendRefreshDataCmd(100, 5);   
         }
         DisplayOffTime = dateTimeUTCNow;
       }
@@ -1213,6 +1258,10 @@ void loop() {
           #endif // IRIS_PIN
           //if ((dateTimeUTCNow.operator-(animationStartTime)).totalseconds() > ANIMATION_DURATION_SECONDS)
 
+          #if WORK_WITH_WATCHDOG == 1
+            SAMCrashMonitor::iAmAlive();
+          #endif
+             
           if ((millis() - animationStartTime) > ANIMATION_DURATION_MS)
           {
             animationShallRun = false;
@@ -1224,7 +1273,10 @@ void loop() {
             {
                showDisplayFrame(TEMP_SENSOR_01_LABEL, TEMP_SENSOR_02_LABEL, TEMP_SENSOR_03_LABEL, TEMP_SENSOR_04_LABEL, TFT_BLACK, TFT_BLACK, TFT_DARKGREY);   
             }         
-            fillDisplayFrame(ValueType::Power, 999.9, 999.9, 999.9, 999.9, false, false, false, false, false);
+            fillDisplayFrame(ValueType::Power, 999.9, 999.9, 999.9, 999.9, rfm69ReinitializationHappened, watchDogResetHappened, false, false, false);
+
+            sendRefreshDataCmd(100,5);
+
           }
 
        }
@@ -1234,11 +1286,34 @@ void loop() {
   }
 }
 
-void sendRefreshDataCmd()
+void hardResetRfm69(uint8_t pin, uint32_t delayTime_Ms)
+{   
+  pinMode(pin, OUTPUT);   // Wio Terminal: 3
+  digitalWrite(pin, HIGH);  
+  delay(100);
+  digitalWrite(pin, LOW);
+  delay(100);
+  if (delayTime_Ms > 0)
+  {
+    delay(delayTime_Ms);
+  }
+}
+
+void sendRefreshDataCmd(uint32_t sendInterval_Ms, uint32_t repeats)
 {
   sprintf(packets.radiopacket, "RefreshCurrentData");
-  Serial.println(packets.radiopacket);
-  rfm69.send(SOLARPUMP_CURRENT_SENDER_ID, packets.radiopacket, radioPacketLength, false);
+  //Serial.println(packets.radiopacket);
+  uint32_t interval = sendInterval_Ms == 0 ? 100 : sendInterval_Ms > 1000 ? 1000 : sendInterval_Ms;  // stay in borders
+  uint32_t reps = repeats < 1 ? 1 : repeats > 10 ? 10 : repeats;                                     // stay in borders
+
+  for (int i = 0; i < (int)reps; i++)
+  {
+    rfm69.send(SOLARPUMP_CURRENT_SENDER_ID, packets.radiopacket, radioPacketLength, false);
+    if (reps > 1)
+    {
+      delay(interval);
+    }
+  }
 }
 
 

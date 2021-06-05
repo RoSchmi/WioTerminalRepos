@@ -33,7 +33,7 @@
 
                                    
 
-#define WORK_WITH_WATCHDOG 0           // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
+#define WORK_WITH_WATCHDOG 1          // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
 
 // Set timezoneoffset and daylightsavingtime settings according to your zone
 // https://en.wikipedia.org/wiki/Daylight_saving_time_by_country
